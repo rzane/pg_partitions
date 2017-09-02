@@ -8,6 +8,10 @@ module PgPartitions
 
     class If < Struct.new(:conditions)
       def to_sql
+        if conditions.empty?
+          raise ArgumentError, 'You must provide at least one condition'
+        end
+
         lines = conditions.map do |opts|
           if opts.key? :if
             build_condition :if, opts
@@ -19,7 +23,7 @@ module PgPartitions
         end
 
         lines << 'END IF;'
-        lines.join "\n"
+        lines.join("\n") << "\n"
       end
 
       private
@@ -41,7 +45,7 @@ module PgPartitions
           DECLARE
             result #{table}%rowtype;
           BEGIN
-          #{body.to_sql.indent(2)}
+          #{body.indent(2)}
             RETURN result;
           END;
           $$

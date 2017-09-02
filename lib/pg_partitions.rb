@@ -11,7 +11,7 @@ module PgPartitions
 
   def add_partition_trigger(table, name, conditions)
     insert_conditions = SQL::If.new(conditions)
-    insert_function   = SQL::InsertFunction.new(table, name, insert_conditions)
+    insert_function   = SQL::InsertFunction.new(table, name, insert_conditions.to_sql)
     insert_trigger    = SQL::Trigger.new(table, name, 'BEFORE INSERT')
 
     delete_function   = SQL::DeleteFunction.new(table, "#{name}_delete")
