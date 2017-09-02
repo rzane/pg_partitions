@@ -28,26 +28,4 @@ module Migrations
       ]
     end
   end
-
-  class AddIndex < ActiveRecord::Migration[5.1]
-    def change
-      add_index :comments, :body, name: 'idx_body_on_comments'
-    end
-  end
-
-  class AddConflictingIndexes < ActiveRecord::Migration[5.1]
-    def change
-      add_index :comments, :body
-      add_index :comments_2016, :body, where: "body = 'foo'"
-    end
-  end
-
-  class CopyIndicies < ActiveRecord::Migration[5.1]
-    include PgPartitions
-
-    def change
-      copy_indicies from: :comments, to: [:comments_2016, :comments_2017]
-      copy_indicies from: :comments, to: [:comments_2016, :comments_2017]
-    end
-  end
 end
