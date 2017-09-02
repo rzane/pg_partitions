@@ -1,21 +1,21 @@
 require 'active_support/core_ext/string'
 
 require 'pg_partitions/version'
-require 'pg_partitions/statements'
+require 'pg_partitions/sql'
 
 module PgPartitions
   def add_partition(table, name, check:)
-    statement = Statements::Partition.new(table, check)
+    statement = SQL::Partition.new(table, check)
     create_table(name, id: false, options: statement.to_sql)
   end
 
   def add_partition_trigger(table, name, conditions)
-    insert_conditions = Statements::If.new(conditions)
-    insert_function   = Statements::InsertFunction.new(table, name, insert_conditions)
-    insert_trigger    = Statements::Trigger.new(table, name, 'BEFORE INSERT')
+    insert_conditions = SQL::If.new(conditions)
+    insert_function   = SQL::InsertFunction.new(table, name, insert_conditions)
+    insert_trigger    = SQL::Trigger.new(table, name, 'BEFORE INSERT')
 
-    delete_function   = Statements::DeleteFunction.new(table, "#{name}_delete")
-    delete_trigger    = Statements::Trigger.new(table, "#{name}_delete", 'AFTER INSERT')
+    delete_function   = SQL::DeleteFunction.new(table, "#{name}_delete")
+    delete_trigger    = SQL::Trigger.new(table, "#{name}_delete", 'AFTER INSERT')
 
     reversible do |dir|
       dir.up do

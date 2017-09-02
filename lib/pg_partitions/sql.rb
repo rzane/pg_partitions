@@ -1,5 +1,5 @@
 module PgPartitions
-  module Statements
+  module SQL
     class Partition < Struct.new(:table, :check)
       def to_sql
         "(LIKE #{table} INCLUDING ALL, CHECK (#{check})) INHERITS (#{table})"
