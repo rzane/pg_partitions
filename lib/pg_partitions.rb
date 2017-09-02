@@ -14,7 +14,7 @@ module PgPartitions
       "INSERT INTO #{opts.fetch(:insert)} VALUES(NEW.*)"
     end
 
-    "#{key.to_s.upcase} (#{opts[key]}) THEN\n  #{then_sql};"
+    "#{key.to_s.upcase} (#{opts[key]}) THEN\n  #{then_sql} RETURNING * INTO r;"
   end
 
   # Triggers
@@ -35,9 +35,22 @@ module PgPartitions
       execute <<~SQL
         CREATE FUNCTION #{name}()
         RETURNS TRIGGER AS $$
+        DECLARE
+          r #{table}%rowtype;
         BEGIN
         #{expressions.join("\n").indent(2)}
-          RETURN NULL;
+          RETURN r;
+        END;
+        $$
+        LANGUAGE plpgsql;
+
+        CREATE FUNCTION #{name}_delete()
+        RETURNS TRIGGER AS $$
+        DECLARE
+          r #{table}%rowtype;
+        BEGIN
+          DELETE FROM ONLY #{table} WHERE id = NEW.id RETURNING * INTO r;
+          RETURN r;
         END;
         $$
         LANGUAGE plpgsql;
@@ -45,6 +58,10 @@ module PgPartitions
         CREATE TRIGGER #{name}
         BEFORE INSERT ON #{table}
         FOR EACH ROW EXECUTE PROCEDURE #{name}();
+
+        CREATE TRIGGER #{name}_delete
+        AFTER INSERT ON #{table}
+        FOR EACH ROW EXECUTE PROCEDURE #{name}_delete();
       SQL
     end
 
@@ -60,6 +77,8 @@ module PgPartitions
   def drop_partition_trigger(table, name)
     execute "DROP TRIGGER #{name} ON #{table}"
     execute "DROP FUNCTION #{name}()"
+    execute "DROP TRIGGER #{name}_delete ON #{table}"
+    execute "DROP FUNCTION #{name}_delete()"
   end
 
   # Index synchronization
