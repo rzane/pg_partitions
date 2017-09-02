@@ -26,6 +26,14 @@ class PgPartitions::TestCase < Minitest::Test
     ActiveRecord::Migration.suppress_messages do
       ActiveRecord::Migration.run(*args)
     end
+
+    if block_given?
+      begin
+        yield
+      ensure
+        rollback(*args.reverse)
+      end
+    end
   end
 
   def rollback(*args)

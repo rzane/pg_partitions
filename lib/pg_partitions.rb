@@ -2,6 +2,20 @@ require "pg_partitions/version"
 require 'active_support/core_ext/string'
 
 module PgPartitions
+  class ConflictingIndexError < StandardError
+    def initialize(parent, child)
+      @parent = parent
+      @child = child
+
+      super <<~MSG
+        An index named #{parent.name} exists on both #{parent.table} and #{child.table},
+        but they differ. You can resolve this issue by running:
+
+          remove_index :#{child.table}, name: :#{child.name}
+      MSG
+    end
+  end
+
   def add_partition(table, name, check:)
     options = "(LIKE #{table} INCLUDING ALL, CHECK (#{check})) " \
               "INHERITS (#{table})"
@@ -9,15 +23,6 @@ module PgPartitions
     create_table(name, id: false, options: options)
   end
 
-  def build_condition(key, opts)
-    then_sql = opts.fetch :then do
-      "INSERT INTO #{opts.fetch(:insert)} VALUES(NEW.*)"
-    end
-
-    "#{key.to_s.upcase} (#{opts[key]}) THEN\n  #{then_sql} RETURNING * INTO r;"
-  end
-
-  # Triggers
   def add_partition_trigger(table, name, mappings)
     expressions = mappings.map do |opts|
       if opts.key? :if
@@ -81,28 +86,56 @@ module PgPartitions
     execute "DROP FUNCTION #{name}_delete()"
   end
 
-  # Index synchronization
+  def copy_indicies(from:, to:)
+    parents = connection.indexes(from)
 
-  def synchronize_indexes(from:, to:)
-    expected = index_statements_for(from)
+    arg_lists = to.flat_map do |table_name|
+      children = connection.indexes(table_name)
 
-    to.each do |table_name|
-      actual = index_statements_for(table_name)
+      matches = parents.map do |index|
+        [index, children.find { |i| i.columns == index.columns }]
+      end
 
-      (expected - actual).each do |statement|
-        execute(statement)
+      matches.map do |parent, child|
+        if child.nil?
+          [table_name, parent.columns, index_options(parent)]
+        elsif indexes_differ?(parent, child)
+          raise ConflictingIndexError.new(parent, child)
+        end
+      end
+    end
+
+    reversible do |dir|
+      dir.up do
+        arg_lists.compact.each do |args|
+          add_index(*args)
+        end
+      end
+
+      dir.down do
+        raise ActiveRecord::IrreversibleMigration
       end
     end
   end
 
-  def index_statements_for(table)
-    execute <<~SQL
-      SELECT pg_get_indexdef(idx.oid)||';'
-      FROM pg_index ind
-      JOIN pg_class idx on idx.oid = ind.indexrelid
-      JOIN pg_class tbl on tbl.oid = ind.indrelid
-      LEFT join pg_namespace ns ON ns.oid = tbl.relnamespace
-      WHERE tbl.relname = #{table};
-    SQL
+  def index_options(index)
+    %i(unique where length using type).reduce({}) do |acc, key|
+      value = index.public_send(key)
+      value ? acc.merge(key => value) : acc
+    end
+  end
+
+  def indexes_differ?(a, b)
+    a.to_h.except(:name, :table) != b.to_h.except(:name, :table)
+  end
+
+  private
+
+  def build_condition(key, opts)
+    then_sql = opts.fetch :then do
+      "INSERT INTO #{opts.fetch(:insert)} VALUES(NEW.*)"
+    end
+
+    "#{key.to_s.upcase} (#{opts[key]}) THEN\n  #{then_sql} RETURNING * INTO r;"
   end
 end

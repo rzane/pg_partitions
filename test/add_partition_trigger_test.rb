@@ -19,9 +19,6 @@ class AddPartitionTriggerTest < PgPartitions::TestCase
     assert_equal 'EXECUTE PROCEDURE comments_by_year()', trigger.action_statement
   end
 
-  def test_trigger_source
-  end
-
   def test_trigger_routing
     comment1 = Comment.create!(year: 2016)
     comment2 = Comment.create!(year: 2017)

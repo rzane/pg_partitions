@@ -1,7 +1,7 @@
 module Migrations
   class Create < ActiveRecord::Migration[5.1]
     def change
-      create_table(:comments) do |t|
+      create_table :comments do |t|
         t.string :body
         t.integer :year
       end
@@ -31,7 +31,14 @@ module Migrations
 
   class AddIndex < ActiveRecord::Migration[5.1]
     def change
+      add_index :comments, :body, name: 'idx_body_on_comments'
+    end
+  end
+
+  class AddConflictingIndexes < ActiveRecord::Migration[5.1]
+    def change
       add_index :comments, :body
+      add_index :comments_2016, :body, where: "body = 'foo'"
     end
   end
 
@@ -39,7 +46,8 @@ module Migrations
     include PgPartitions
 
     def change
-      copy_indicies :comments, [:comments_2016, :comments_2017]
+      copy_indicies from: :comments, to: [:comments_2016, :comments_2017]
+      copy_indicies from: :comments, to: [:comments_2016, :comments_2017]
     end
   end
 end

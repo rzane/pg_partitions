@@ -21,5 +21,3 @@ class AddPartitionTest < PgPartitions::TestCase
     assert_equal comments_cols, comments_2016_cols
   end
 end
-
-
