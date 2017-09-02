@@ -10,16 +10,13 @@ module PgPartitions
   end
 
   def add_partition_trigger(table, name, conditions)
-    insert_conditions = SQL::If.new(conditions)
-    insert_function   = SQL::InsertFunction.new(table, name, insert_conditions.to_sql)
-    insert_trigger    = SQL::Trigger.new(table, name, 'BEFORE INSERT')
-
+    insert_trigger    = SQL::Trigger.new(table, "#{name}_insert", 'BEFORE INSERT')
     delete_function   = SQL::DeleteFunction.new(table, "#{name}_delete")
     delete_trigger    = SQL::Trigger.new(table, "#{name}_delete", 'AFTER INSERT')
 
     reversible do |dir|
       dir.up do
-        execute insert_function.to_sql
+        update_partition_trigger(table, name, conditions)
         execute insert_trigger.to_sql
 
         execute delete_function.to_sql
@@ -32,9 +29,20 @@ module PgPartitions
     end
   end
 
+  def update_partition_trigger(table, name, conditions)
+    insert_conditions = SQL::If.new(conditions)
+    insert_function   = SQL::InsertFunction.new(
+      table,
+      "#{name}_insert",
+      insert_conditions.to_sql
+    )
+
+    execute insert_function.to_sql
+  end
+
   def drop_partition_trigger(table, name)
-    execute "DROP TRIGGER #{name} ON #{table}"
-    execute "DROP FUNCTION #{name}()"
+    execute "DROP TRIGGER #{name}_insert ON #{table}"
+    execute "DROP FUNCTION #{name}_insert()"
     execute "DROP TRIGGER #{name}_delete ON #{table}"
     execute "DROP FUNCTION #{name}_delete()"
   end

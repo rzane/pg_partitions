@@ -37,10 +37,10 @@ module PgPartitions
       end
     end
 
-    class InsertFunction < Struct.new(:table, :name, :body)
+    class Function < Struct.new(:table, :name, :body)
       def to_sql
         <<~SQL
-          CREATE FUNCTION #{name}()
+          CREATE OR REPLACE FUNCTION #{name}()
           RETURNS TRIGGER AS $$
           DECLARE
             result #{table}%rowtype;
@@ -54,20 +54,18 @@ module PgPartitions
       end
     end
 
-    class DeleteFunction < Struct.new(:table, :name)
-      def to_sql
-        <<~SQL
-          CREATE FUNCTION #{name}()
-          RETURNS TRIGGER AS $$
-          DECLARE
-            r #{table}%rowtype;
-          BEGIN
-            DELETE FROM ONLY #{table} WHERE id = NEW.id RETURNING * INTO r;
-            RETURN r;
-          END;
-          $$
-          LANGUAGE plpgsql;
-        SQL
+    class InsertFunction < Function
+    end
+
+    class DeleteFunction < Function
+      def initialize(table, name)
+        super(table, name, delete_statement(table))
+      end
+
+      private
+
+      def delete_statement(table)
+        "DELETE FROM ONLY #{table} WHERE id = NEW.id RETURNING * INTO result;"
       end
     end
 

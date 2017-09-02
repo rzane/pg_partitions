@@ -10,14 +10,23 @@ class PgPartitionsTest < Minitest::Test
         t.integer :year
       end
 
-      add_partition :comments, :comments_2017, check: 'year = 2017'
       add_partition :comments, :comments_2016, check: 'year = 2016'
 
       add_partition_trigger :comments, :comments_by_year, [
-        { if: 'NEW.year = 2017', insert: :comments_2017 },
-        { elsif: 'NEW.year = 2016', insert: :comments_2016 },
-        { else: "RAISE EXCEPTION 'Missing partition for year: %', NEW.year;" }
+        { if: 'NEW.year = 2016', insert: :comments_2016 }
       ]
+
+      add_partition :comments, :comments_2017, check: 'year = 2017'
+
+      reversible do |dir|
+        dir.up do
+          update_partition_trigger :comments, :comments_by_year, [
+            { if: 'NEW.year = 2016', insert: :comments_2016 },
+            { elsif: 'NEW.year = 2017', insert: :comments_2017 },
+            { else: "RAISE EXCEPTION 'Missing partition for year: %', NEW.year;" }
+          ]
+        end
+      end
     end
   end
 
@@ -34,7 +43,9 @@ class PgPartitionsTest < Minitest::Test
   end
 
   def teardown
-    migrate SetupComments, revert: true
+    if conn.table_exists? :comments
+      migrate SetupComments, revert: true
+    end
   end
 
   def test_partitions_exist
@@ -49,14 +60,24 @@ class PgPartitionsTest < Minitest::Test
     assert_equal indexes_for(:comments), indexes_for(:comments_2016)
   end
 
-  def test_trigger_table
-    trigger = Trigger.find(:comments_by_year)
+  def test_insert_trigger_table
+    trigger = Trigger.find(:comments_by_year_insert)
     assert_equal 'comments', trigger.event_object_table
   end
 
-  def test_trigger_routine
-    trigger = Trigger.find(:comments_by_year)
-    assert_equal 'EXECUTE PROCEDURE comments_by_year()', trigger.action_statement
+  def test_insert_trigger_routine
+    trigger = Trigger.find(:comments_by_year_insert)
+    assert_equal 'EXECUTE PROCEDURE comments_by_year_insert()', trigger.action_statement
+  end
+
+  def test_delete_trigger_table
+    trigger = Trigger.find(:comments_by_year_delete)
+    assert_equal 'comments', trigger.event_object_table
+  end
+
+  def test_delete_trigger_routine
+    trigger = Trigger.find(:comments_by_year_delete)
+    assert_equal 'EXECUTE PROCEDURE comments_by_year_delete()', trigger.action_statement
   end
 
   def test_trigger_routing

@@ -29,7 +29,7 @@ class PgPartitions::SQLTest < Minitest::Test
     )
 
     expected = <<~SQL
-      CREATE FUNCTION bar()
+      CREATE OR REPLACE FUNCTION bar()
       RETURNS TRIGGER AS $$
       DECLARE
         result foo%rowtype;
