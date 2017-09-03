@@ -1,14 +1,31 @@
 #!/usr/bin/env ruby
 
-require "bundler/setup"
-require "pg_partitions"
+require 'bundler/setup'
+require 'pg_partitions'
+require 'active_record'
+require 'pry'
 
-# You can add fixtures and/or initialization code here to make experimenting
-# with your gem easier. You can also use a different console, if you like.
+ActiveRecord::Base.establish_connection(
+  adapter: 'postgresql',
+  database: 'pg_partitions_dev'
+)
 
-# (If you use this, don't forget to add pry to your Gemfile!)
-# require "pry"
-# Pry.start
+class Migration < ActiveRecord::Migration[5.1]
+  include PgPartitions
 
-require "irb"
-IRB.start(__FILE__)
+  def change
+    create_table :comments do |t|
+      t.integer :year
+    end
+
+    add_partition :comments, :comments_2016, check: 'year = 2016'
+    add_partition :comments, :comments_2017, check: 'year = 2017'
+  end
+end
+
+ActiveRecord::Migration.run Migration
+
+class Comment < ActiveRecord::Base
+end
+
+binding.pry

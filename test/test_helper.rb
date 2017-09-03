@@ -5,5 +5,5 @@ require 'minitest/autorun'
 
 ActiveRecord::Base.establish_connection(
   adapter: 'postgresql',
-  database: 'pg_partitions'
+  database: 'pg_partitions_test'
 )
